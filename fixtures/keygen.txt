@@ -1,0 +1,17 @@
+Generating public/private rsa key pair.
+Your identification has been saved in test.
+Your public key has been saved in test.pub.
+The key fingerprint is:
+SHA256:i+MNV8tIV664YQr7696dRzondy1+UpgEDQOJhCRMhWg
+The key's randomart image is:
++---[RSA 1024]----+
+|   +o+oo...ooo   |
+|  E o.. . . ...  |
+| .          ..   |
+|           o  .  |
+|        S o .. o |
+|       o B o. o .|
+|    . + B +o   o |
+|     + O ++.+ + o|
+|    .+B.+ o* o.+ |
++----[SHA256]-----+
