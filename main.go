@@ -2,17 +2,24 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"image"
 	"log"
 	"os"
 	"regexp"
 
+	"image/color"
+	"image/draw"
+
+	"image/jpeg"
+
 	"github.com/topherbullock/randomartist/art"
 )
 
 func main() {
+
+	// TODO : flags for input from a file
 	reader := bufio.NewReader(os.Stdin)
+
 	_, err := readUntilMatch(reader, start)
 	if err != nil {
 		log.Fatal(err)
@@ -22,15 +29,44 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var height = len(contents)
-	var width = len(contents[0])
-	for _, line := range contents {
-		fmt.Println(string(line[1 : len(line)-1]))
+
+	// TODO : flag for pallete selection
+	// TODO : flag for scale
+	img := paintImage(contents, art.SharryNight, 25)
+
+	// TODO : flag for image output location
+	out, err := os.Create("./out.jpg")
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	image.NewPaletted(getRekt(width, height), art.ShasiliyRandinsky)
+	// TODO : flag for quality
+	err = jpeg.Encode(out, img, &jpeg.Options{Quality: 100})
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
+func paintImage(contents [][]byte, palette color.Palette, scale int) *image.Paletted {
+	height := len(contents) * scale
+	width := len(contents[0]) * scale
+	img := image.NewPaletted(getRekt(image.Point{0, 0}, width, height), palette)
+
+	img.Pix = make([]uint8, width*height)
+
+	for y, line := range contents {
+		for x, symbol := range line {
+			colorIndex := art.PaletteLookup[string(symbol)]
+			box := getRekt(image.Point{x * scale, y * scale}, scale, scale)
+			draw.Draw(img, box, &image.Uniform{palette[colorIndex]}, image.ZP, draw.Src)
+		}
+	}
+
+	return img
+}
+
+// TODO prolly want to fix these to handle more randart outputs than the one example I've tested with
 var start = regexp.MustCompile(`\+\-*\[RSA\ (\d)*\]\-*\+`)
 var end = regexp.MustCompile(`\+\-*\[SHA256(\d)*\]\-*\+`)
 
@@ -50,9 +86,9 @@ func readUntilMatch(reader *bufio.Reader, exp *regexp.Regexp) ([][]byte, error) 
 	}
 }
 
-func getRekt(width int, height int) image.Rectangle {
+func getRekt(point image.Point, width int, height int) image.Rectangle {
 	return image.Rectangle{
-		Min: image.Point{0, 0},
-		Max: image.Point{width, height},
+		Min: point,
+		Max: image.Point{point.X + width, point.Y + height},
 	}
 }
