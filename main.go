@@ -2,93 +2,85 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"image"
+	"io"
 	"log"
 	"os"
-	"regexp"
-
-	"image/color"
-	"image/draw"
 
 	"image/jpeg"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/topherbullock/randomartist/art"
 )
 
-func main() {
-
-	// TODO : flags for input from a file
-	reader := bufio.NewReader(os.Stdin)
-
-	_, err := readUntilMatch(reader, start)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	contents, err := readUntilMatch(reader, end)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// TODO : flag for pallete selection
-	// TODO : flag for scale
-	img := paintImage(contents, art.SharryNight, 25)
-
-	// TODO : flag for image output location
-	out, err := os.Create("./out.jpg")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// TODO : flag for quality
-	err = jpeg.Encode(out, img, &jpeg.Options{Quality: 100})
-
-	if err != nil {
-		log.Fatal(err)
-	}
+type RandomArtistCmd struct {
+	InputFile   string `long:"input" short:"i" description:"Source file containing randart"`
+	OutputFile  string `long:"output" short:"o" default:"randart.jpg" description:"output file destination"`
+	Scale       int    `long:"scale"  short:"s" default:"25" description:"scaling factor for the image file"`
+	JpegQuality int    `long:"quality"  short:"q" default:"85" description:"jpeg quality for the output"`
+	Palette     string `long:"palette" short:"p" default:"SharryNight" choice:"SharryNight" choice:"RandyWarhol" choice:"ShasiliyRandinsky" description:"color palette to use"`
 }
 
-func paintImage(contents [][]byte, palette color.Palette, scale int) *image.Paletted {
-	height := len(contents) * scale
-	width := len(contents[0]) * scale
-	img := image.NewPaletted(getRekt(image.Point{0, 0}, width, height), palette)
+func (r *RandomArtistCmd) readfile() (*[][]byte, error) {
+	var (
+		source io.Reader
+		err    error
+	)
 
-	img.Pix = make([]uint8, width*height)
-
-	for y, line := range contents {
-		for x, symbol := range line {
-			colorIndex := art.PaletteLookup[string(symbol)]
-			box := getRekt(image.Point{x * scale, y * scale}, scale, scale)
-			draw.Draw(img, box, &image.Uniform{palette[colorIndex]}, image.ZP, draw.Src)
-		}
-	}
-
-	return img
-}
-
-// TODO prolly want to fix these to handle more randart outputs than the one example I've tested with
-var start = regexp.MustCompile(`\+\-*\[RSA\ (\d)*\]\-*\+`)
-var end = regexp.MustCompile(`\+\-*\[SHA256(\d)*\]\-*\+`)
-
-func readUntilMatch(reader *bufio.Reader, exp *regexp.Regexp) ([][]byte, error) {
-	var lines [][]byte
-	for {
-		line, isPrefix, err := reader.ReadLine()
+	if r.InputFile != "" {
+		source, err = os.Open(r.InputFile)
 		if err != nil {
-			return lines, err
+			return nil, err
 		}
-
-		if !isPrefix && exp.Match(line) {
-			return lines, nil
-		}
-
-		lines = append(lines, line)
+	} else {
+		source = os.Stdin
 	}
+
+	return art.ReadRandart(bufio.NewReader(source))
 }
 
-func getRekt(point image.Point, width int, height int) image.Rectangle {
-	return image.Rectangle{
-		Min: point,
-		Max: image.Point{point.X + width, point.Y + height},
+func (r *RandomArtistCmd) paintImage(contents [][]byte) (image.Image, error) {
+	palette, ok := art.Palettes[r.Palette]
+	if !ok {
+		return nil, errors.New("Palette not found")
+	}
+
+	return art.PaintImage(contents, palette, r.Scale), nil
+}
+
+func (r *RandomArtistCmd) saveFile(img image.Image) error {
+	out, err := os.Create(r.OutputFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return jpeg.Encode(out, img, &jpeg.Options{Quality: r.JpegQuality})
+}
+
+func main() {
+	cmd := &RandomArtistCmd{}
+	parser := flags.NewParser(cmd, flags.Default)
+	parser.NamespaceDelimiter = "-"
+
+	_, err := parser.Parse()
+
+	if err != nil {
+		os.Exit(1)
+	}
+
+	contents, err := cmd.readfile()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	img, err := cmd.paintImage(*contents)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = cmd.saveFile(img)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
